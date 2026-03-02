@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QITC MPU Python Code (Final Bridge Version)</title>
+    <title>QITC MPU Python Code</title>
     <style>
         body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
         pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
@@ -14,6 +13,8 @@
 <pre><code>import sys
 import time
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
     from arduino.app_utils import *
@@ -21,37 +22,60 @@ except ImportError:
     print("FATAL ERROR: 'arduino.app_utils' module not found.")
     sys.exit(1)
 
+dashboard_data = {"status": "INITIALIZING", "data": None}
+
+class WebDashboardHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.end_headers()
+        html_content = f"""&lt;html&gt;
+        &lt;head&gt;&lt;meta http-equiv="refresh" content="2"&gt;&lt;/head&gt;
+        &lt;body style="background-color:#121212; color:#00FF00; font-family:monospace; padding:20px;"&gt;
+            &lt;h1&gt;QITC Secure Edge Adjudicator Dashboard&lt;/h1&gt;
+            &lt;hr style="border-color:#333;"&gt;
+            &lt;h2&gt;Latest Result:&lt;/h2&gt;
+            &lt;pre style="font-size:18px; background:#222; padding:15px;"&gt;{json.dumps(dashboard_data, indent=4)}&lt;/pre&gt;
+        &lt;/body&gt;
+        &lt;/html&gt;"""
+        self.wfile.write(html_content.encode('utf-8'))
+        
+    def log_message(self, format, *args):
+        pass
+
+def start_server():
+    server = HTTPServer(('0.0.0.0', 8080), WebDashboardHandler)
+    server.serve_forever()
+
 def main():
-    print("System: Initializing Arduino Bridge (MPU-MCU)...")
+    global dashboard_data
+    
+    threading.Thread(target=start_server, daemon=True).start()
+    print("System: Web Dashboard running. Open http://&lt;Board_IP&gt;:8080 in browser.")
     
     scenarios = [
         {"event_id": "EVT_001", "amount": 5000.0, "currency": "USD", "risk_score": 10},
         {"event_id": "EVT_002", "amount": 15000.0, "currency": "USD", "risk_score": 20},
-        {"event_id": "EVT_003", "amount": 8000.0, "currency": "USD", "risk_score": 85},
-        {"event_id": "EVT_004", "amount": 3000.0, "currency": "EUR", "risk_score": 5}
+        {"event_id": "EVT_003", "amount": 8000.0, "currency": "USD", "risk_score": 85}
     ]
     
     try:
         while True:
             for txn_data in scenarios:
                 payload = json.dumps(txn_data)
-                print(f"[Tx] Sending via Bridge: {payload}")
                 
                 try:
                     response = Bridge.call('adjudicate_txn', payload)
-                    
                     if response:
-                        print(f"[Rx] MCU Adjudication Result: {response}\n")
+                        dashboard_data = {"status": "SUCCESS", "data": json.loads(response)}
                     else:
-                        print("[Rx] Error: MCU responded with empty payload.\n")
-                        
+                        dashboard_data = {"status": "ERROR", "data": "Empty Response"}
                 except Exception as err:
-                    print(f"[Bridge Error] Call failed: {err}\n")
+                    dashboard_data = {"status": "BRIDGE_ERROR", "data": str(err)}
                 
                 time.sleep(3)
                 
     except KeyboardInterrupt:
-        print("\nProcess terminated by user.")
         sys.exit(0)
 
 if __name__ == '__main__':
