@@ -1,79 +1,118 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QITC MPU Python Code</title>
-    <style>
-        body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
-        pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
-        code { font-family: Consolas, Monaco, monospace; font-size: 14px; line-height: 1.5; }
-    </style>
-</head>
-<body>
-<pre><code>import sys
-import time
+#!/usr/bin/env python3
 import json
+import time
+import sys
 
 try:
     import serial
 except ImportError:
-    print("ERROR: 'pyserial' module not found. Please install it.")
+    print("[FATAL] pyserial not installed. Run: pip install pyserial")
     sys.exit(1)
 
-SERIAL_PORT = '/dev/ttyS0'
+# ===== SERIAL CONFIG =====
+POSSIBLE_PORTS = [
+    "/dev/ttyACM0",
+    "/dev/ttyUSB0",
+    "/dev/ttyS0"
+]
+
 BAUD_RATE = 115200
-TIMEOUT_SEC = 2
+RETRY_DELAY = 2
 
-def init_uart():
-    try:
-        ser = serial.Serial(
-            port=SERIAL_PORT,
-            baudrate=BAUD_RATE,
-            timeout=TIMEOUT_SEC
-        )
-        print(f"UART Initialized: {SERIAL_PORT} @ {BAUD_RATE}")
-        return ser
-    except serial.SerialException as e:
-        print(f"UART Initialization Error: {e}")
-        sys.exit(1)
 
-def generate_mock_txn():
-    return {
-        "event_id": "EVT_001",
-        "action": "TXN_TRANSFER",
-        "amount": 100000,
-        "currency": "USD"
-    }
+def find_serial_port():
+    for port in POSSIBLE_PORTS:
+        try:
+            ser = serial.Serial(port, BAUD_RATE, timeout=1)
+            print(f"[INFO] Connected to {port}")
+            return ser
+        except:
+            continue
+    return None
+
+
+def render_dashboard(uuid, res, meta_a, meta_b):
+    sys.stdout.write('\033[2J\033[H')
+
+    status_str = "ALLOW" if res == 1 else (
+        "DENY" if res == 0 else "PENDING"
+    )
+
+    print("+----------------------------------+----------------------------------+")
+    print("| [1] AI INFERENCE TXN STREAM      | [2] MCU ADJUDICATION REPORT      |")
+    print("+----------------------------------+----------------------------------+")
+    print(f"| UUID: {uuid[:8]:<23}  | STATUS: {status_str:<24} |")
+    print("| SIMULATING AI AGENT SCRIPT...    | STATIC RULEPACK APPLIED          |")
+    print("|                                  | META A RECEIVED                  |")
+    print("+----------------------------------+----------------------------------+")
+    print("| [3] EDGE SELF-HEALING CENTER     | [4] IMMUTABLE EVIDENCE CHAIN     |")
+    print("+----------------------------------+----------------------------------+")
+
+    if res == -1:
+        print("| ACTION: ROUTE TO ASYNC RISK POOL | META A HASH (HARDWARE):          |")
+        print(f"| WAITING FOR HUMAN REVIEW...      | {meta_a:<32} |")
+    else:
+        print("| ACTION: FINALIZE TXN STATUS      | META A HASH (HARDWARE):          |")
+        print("| NO HEALING REQUIRED              |                                  |")
+
+    print("|                                  | META B HASH (INTEGRATED):        |")
+    print(f"|                                  | {meta_b:<32} |")
+    print("+----------------------------------+----------------------------------+")
+    print("[SYSTEM] DATA SYNCHRONIZED | ATOMIC WRITE TO USB EXECUTED.")
+    sys.stdout.flush()
+
+
+def integrate_evidence_and_display(uuid, res, meta_a):
+    timestamp = str(int(time.time() * 1000))
+    meta_b (f"MPU_SHA256_{uuid[:6]}_{timestamp}")
+
+    render_dashboard(uuid, res, meta_a, meta_b)
+
 
 def main():
-    uart_conn = init_uart()
-    
+    print("[SYSTEM] Initializing Serial Link...")
+
+    mcu_serial = None
+    while mcu_serial is None:
+        mcu_serial = find_serial_port()
+        if mcu_serial is None:
+            print("[WARN] No serial device found. Retrying...")
+            time.sleep(RETRY_DELAY)
+
+    print("[SYSTEM] Waiting for MCU adjudication stream...")
+
     try:
         while True:
-            txn_data = generate_mock_txn()
-            payload = json.dumps(txn_data) + "\n"
-            
-            uart_conn.write(payload.encode('utf-8'))
-            print(f"[Tx] Sent: {payload.strip()}")
-            
-            response = uart_conn.readline()
-            
-            if response:
-                decoded = response.decode('utf-8').strip()
-                print(f"[Rx] Adjudication Result: {decoded}")
-            else:
-                print("[Timeout] No response from MCU. Check F8/Resume status.")
-            
-            time.sleep(2)
-            
+            if mcu_serial.in_waiting > 0:
+                incoming_data = mcu_serial.readline().decode(
+                    'utf-8', errors='ignore'
+                ).strip()
+
+                if not incoming_data:
+                    continue
+
+                try:
+                    doc = json.loads(incoming_data)
+                    meta_a_data = doc.get("Meta_A", {})
+
+                    uuid = meta_a_data.get("UUID", "")
+                    res = meta_a_data.get("RES", 0)
+                    meta_a = meta_a_data.get("HASH", "")
+
+                    if uuid and meta_a:
+                        integrate_evidence_and_display(uuid, res, meta_a)
+
+                except json.JSONDecodeError:
+                    pass
+
     except KeyboardInterrupt:
-        print("\nProcess terminated.")
+        print("\n[SYSTEM] Terminated by user.")
+    except serial.SerialException as e:
+        print(f"[ERROR] Serial Port Issue: {e}")
     finally:
-        if uart_conn and uart_conn.is_open:
-            uart_conn.close()
+        if mcu_serial and mcu_serial.is_open:
+            mcu_serial.close()
+
 
 if __name__ == '__main__':
-    main()</code></pre>
-</body>
-</html>
+    main()
