@@ -1,13 +1,24 @@
-import sys
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QITC MPU Dashboard & Diagnostics</title>
+    <style>
+        body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
+        pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
+        code { font-family: Consolas, Monaco, monospace; font-size: 14px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<pre><code>import sys
 import time
 import json
 import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-# ===============================
-# Utility
-# ===============================
 def force_print(msg):
     print(msg)
     sys.stdout.flush()
@@ -15,13 +26,13 @@ def force_print(msg):
 force_print("--- SYSTEM DIAGNOSTIC START ---")
 
 # ===============================
-# Network Detection (No external dependency)
+# Network Detection (Local Only)
 # ===============================
 try:
     force_print("Step 1: Detecting Local IP...")
     hostname = socket.gethostname()
     current_ip = socket.gethostbyname(hostname)
-    force_print(f">>> DEVICE IP ADDRESS: {current_ip} <<<")
+    force_print(f"&gt;&gt;&gt; DEVICE IP ADDRESS: {current_ip} &lt;&lt;&lt;")
 except Exception as e:
     current_ip = "127.0.0.1"
     force_print(f"IP Detection Failed. Using localhost. ({e})")
@@ -37,9 +48,6 @@ except ImportError as e:
     force_print(f"FATAL ERROR: arduino.app_utils not found ({e})")
     sys.exit(1)
 
-# ===============================
-# Shared Dashboard State
-# ===============================
 dashboard_data = {
     "status": "INITIALIZING",
     "last_update": "N/A",
@@ -64,31 +72,30 @@ class WebDashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
             html_content = f"""
-            <html>
-            <head>
-                <meta http-equiv="refresh" content="2">
-                <style>
-                    body {{ background:#0f0f0f; color:#00ff41; font-family:monospace; padding:40px; }}
-                    .box {{ border:2px solid #00ff41; padding:20px; border-radius:10px; background:#1a1a1a; }}
-                    h1 {{ color: #fff; }}
-                    .status {{ font-size: 24px; color: #ffea00; }}
-                </style>
-            </head>
-            <body>
-                <h1>Qualcomm QITC - Secure Financial Adjudicator</h1>
-                <div class="box">
-                    <p class="status">System Status: {status}</p>
-                    <hr>
-                    <h2>Live Transaction Evidence (Meta_A):</h2>
-                    <pre style="font-size:16px; color:#00ff41;">
+<html>
+<head>
+<meta http-equiv="refresh" content="2">
+<style>
+body {{ background:#0f0f0f; color:#00ff41; font-family:monospace; padding:40px; }}
+.box {{ border:2px solid #00ff41; padding:20px; border-radius:10px; background:#1a1a1a; }}
+h1 {{ color:#fff; }}
+.status {{ font-size:24px; color:#ffea00; }}
+</style>
+</head>
+<body>
+<h1>Qualcomm QITC - Secure Financial Adjudicator</h1>
+<div class="box">
+<p class="status">System Status: {status}</p>
+<hr>
+<h2>Live Transaction Evidence (Meta_A):</h2>
+<pre style="font-size:16px; color:#00ff41;">
 {json.dumps(result, indent=4)}
-                    </pre>
-                </div>
-                <p>Server IP: {current_ip} | Last Update: {time.strftime('%H:%M:%S')}</p>
-            </body>
-            </html>
-            """
-
+</pre>
+</div>
+<p>Server IP: {current_ip} | Last Update: {time.strftime('%H:%M:%S')}</p>
+</body>
+</html>
+"""
             self.wfile.write(html_content.encode("utf-8"))
 
         except Exception as e:
@@ -99,15 +106,15 @@ class WebDashboardHandler(BaseHTTPRequestHandler):
 
 
 # ===============================
-# Web Server Thread
+# Web Server
 # ===============================
 def start_server():
     try:
         server = ThreadingHTTPServer(("0.0.0.0", 8080), WebDashboardHandler)
-        force_print(">>> Web Server STARTED on port 8080")
+        force_print("&gt;&gt;&gt; Web Server STARTED on port 8080")
         server.serve_forever()
     except Exception as e:
-        force_print(f">>> Web Server FAILED: {e}")
+        force_print(f"&gt;&gt;&gt; Web Server FAILED: {e}")
 
 
 # ===============================
@@ -118,7 +125,6 @@ def main():
 
     force_print(f"Step 3: Starting Web Dashboard at http://{current_ip}:8080")
 
-    # 啟動 Web Server（非 daemon，避免靜默死亡）
     server_thread = threading.Thread(target=start_server)
     server_thread.start()
 
@@ -164,4 +170,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()</code></pre>
+
+</body>
+</html>
