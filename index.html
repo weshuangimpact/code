@@ -1,23 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QITC MPU Dashboard & Diagnostics</title>
-    <style>
-        body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
-        pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
-        code { font-family: Consolas, Monaco, monospace; font-size: 14px; line-height: 1.5; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QITC MPU Dashboard - Download Code</title>
+<style>
+body {
+    background:#111;
+    color:#e0e0e0;
+    font-family:Consolas,monospace;
+    padding:40px;
+}
+h1 {
+    color:#ffffff;
+}
+pre {
+    background:#1e1e1e;
+    padding:20px;
+    border-radius:10px;
+    overflow:auto;
+    border:1px solid #333;
+}
+button {
+    padding:10px 20px;
+    margin-bottom:20px;
+    background:#00aa66;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+button:hover {
+    background:#00cc77;
+}
+</style>
+<script>
+function copyCode() {
+    const code = document.getElementById("codeblock").innerText;
+    navigator.clipboard.writeText(code);
+    alert("Code copied.");
+}
+</script>
 </head>
 <body>
 
-<pre><code>import sys
+<h1>QITC MPU Dashboard (GUI Version)</h1>
+
+<button onclick="copyCode()">Copy Code</button>
+
+<pre id="codeblock"><code>import sys
 import time
 import json
 import socket
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import tkinter as tk
+from tkinter.scrolledtext import ScrolledText
 
 def force_print(msg):
     print(msg)
@@ -25,25 +62,14 @@ def force_print(msg):
 
 force_print("--- SYSTEM DIAGNOSTIC START ---")
 
-# ===============================
-# Network Detection (Local Only)
-# ===============================
 try:
-    force_print("Step 1: Detecting Local IP...")
     hostname = socket.gethostname()
     current_ip = socket.gethostbyname(hostname)
-    force_print(f"&gt;&gt;&gt; DEVICE IP ADDRESS: {current_ip} &lt;&lt;&lt;")
-except Exception as e:
+except:
     current_ip = "127.0.0.1"
-    force_print(f"IP Detection Failed. Using localhost. ({e})")
 
-# ===============================
-# Bridge Import
-# ===============================
 try:
-    force_print("Step 2: Loading Arduino Bridge Utilities...")
     from arduino.app_utils import *
-    force_print("Bridge Utils Loaded Successfully.")
 except ImportError as e:
     force_print(f"FATAL ERROR: arduino.app_utils not found ({e})")
     sys.exit(1)
@@ -56,78 +82,41 @@ dashboard_data = {
 
 data_lock = threading.Lock()
 
-# ===============================
-# Web Handler
-# ===============================
-class WebDashboardHandler(BaseHTTPRequestHandler):
+root = tk.Tk()
+root.title("QITC Secure Financial Adjudicator")
+root.geometry("1000x700")
+root.configure(bg="#0f0f0f")
 
-    def do_GET(self):
-        try:
-            with data_lock:
-                status = dashboard_data["status"]
-                result = dashboard_data["result"]
+title = tk.Label(root,
+                 text="Qualcomm QITC - Secure Financial Adjudicator",
+                 fg="white",
+                 bg="#0f0f0f",
+                 font=("Consolas", 24))
+title.pack(pady=20)
 
-            self.send_response(200)
-            self.send_header("Content-type", "text/html; charset=utf-8")
-            self.end_headers()
+status_label = tk.Label(root,
+                        text="System Status: INITIALIZING",
+                        fg="#ffea00",
+                        bg="#0f0f0f",
+                        font=("Consolas", 20))
+status_label.pack(pady=10)
 
-            html_content = f"""
-<html>
-<head>
-<meta http-equiv="refresh" content="2">
-<style>
-body {{ background:#0f0f0f; color:#00ff41; font-family:monospace; padding:40px; }}
-.box {{ border:2px solid #00ff41; padding:20px; border-radius:10px; background:#1a1a1a; }}
-h1 {{ color:#fff; }}
-.status {{ font-size:24px; color:#ffea00; }}
-</style>
-</head>
-<body>
-<h1>Qualcomm QITC - Secure Financial Adjudicator</h1>
-<div class="box">
-<p class="status">System Status: {status}</p>
-<hr>
-<h2>Live Transaction Evidence (Meta_A):</h2>
-<pre style="font-size:16px; color:#00ff41;">
-{json.dumps(result, indent=4)}
-</pre>
-</div>
-<p>Server IP: {current_ip} | Last Update: {time.strftime('%H:%M:%S')}</p>
-</body>
-</html>
-"""
-            self.wfile.write(html_content.encode("utf-8"))
+result_box = ScrolledText(root,
+                          fg="#00ff41",
+                          bg="#1a1a1a",
+                          font=("Consolas", 14),
+                          height=20)
+result_box.pack(fill="both", expand=True, padx=40, pady=20)
 
-        except Exception as e:
-            force_print(f"[HTTP ERROR] {e}")
+def update_ui():
+    with data_lock:
+        status_label.config(text=f"System Status: {dashboard_data['status']}")
+        result_box.delete("1.0", tk.END)
+        result_box.insert(tk.END,
+                          json.dumps(dashboard_data["result"], indent=4))
+    root.after(1000, update_ui)
 
-    def log_message(self, format, *args):
-        return
-
-
-# ===============================
-# Web Server
-# ===============================
-def start_server():
-    try:
-        server = ThreadingHTTPServer(("0.0.0.0", 8080), WebDashboardHandler)
-        force_print("&gt;&gt;&gt; Web Server STARTED on port 8080")
-        server.serve_forever()
-    except Exception as e:
-        force_print(f"&gt;&gt;&gt; Web Server FAILED: {e}")
-
-
-# ===============================
-# Main Loop
-# ===============================
-def main():
-    global dashboard_data
-
-    force_print(f"Step 3: Starting Web Dashboard at http://{current_ip}:8080")
-
-    server_thread = threading.Thread(target=start_server)
-    server_thread.start()
-
+def worker():
     scenarios = [
         {"event_id": "EVT_ALLOW", "amount": 5000.0, "currency": "USD", "risk_score": 10},
         {"event_id": "EVT_DENY_AMT", "amount": 15000.0, "currency": "USD", "risk_score": 20},
@@ -135,42 +124,25 @@ def main():
         {"event_id": "EVT_DENY_CURR", "amount": 3000.0, "currency": "EUR", "risk_score": 5}
     ]
 
-    force_print("Step 4: Beginning Transaction Stream...")
-
-    try:
-        while True:
-            for txn_data in scenarios:
-                payload = json.dumps(txn_data)
-                force_print(f"[Tx] Transmitting: {payload}")
-
-                try:
-                    response = Bridge.call("adjudicate_txn", payload)
-
+    while True:
+        for txn in scenarios:
+            payload = json.dumps(txn)
+            try:
+                response = Bridge.call("adjudicate_txn", payload)
+                if response:
+                    parsed = json.loads(response)
                     with data_lock:
-                        if response:
-                            parsed_res = json.loads(response)
-                            dashboard_data["status"] = "OPERATIONAL"
-                            dashboard_data["result"] = parsed_res
-                            dashboard_data["last_update"] = time.strftime("%H:%M:%S")
-                            force_print(f"[Rx] Decision: {parsed_res.get('status')}")
-                        else:
-                            dashboard_data["status"] = "MCU_RESPONSE_EMPTY"
-                            force_print("[Rx] Empty response from MCU")
+                        dashboard_data["status"] = "OPERATIONAL"
+                        dashboard_data["result"] = parsed
+                        dashboard_data["last_update"] = time.strftime("%H:%M:%S")
+            except:
+                with data_lock:
+                    dashboard_data["status"] = "BRIDGE_ERROR"
+            time.sleep(3)
 
-                except Exception as err:
-                    with data_lock:
-                        dashboard_data["status"] = "BRIDGE_ERROR"
-                    force_print(f"[Bridge Error] {err}")
-
-                time.sleep(3)
-
-    except KeyboardInterrupt:
-        force_print("System shutdown initiated.")
-        sys.exit(0)
-
-
-if __name__ == "__main__":
-    main()</code></pre>
+threading.Thread(target=worker, daemon=True).start()
+update_ui()
+root.mainloop()</code></pre>
 
 </body>
 </html>
