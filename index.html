@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QITC MPU Python Code</title>
+    <title>QITC MPU Python Code (RPC Version)</title>
     <style>
         body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
         pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
@@ -16,39 +16,11 @@ import time
 import json
 
 try:
-    import serial
-    import serial.tools.list_ports
+    import rpc
 except ImportError:
-    print("ERROR: 'pyserial' module not found. Please install it.")
+    print("FATAL ERROR: 'rpc' module not found.")
+    print("Ensure this script is running inside the official Arduino App Lab container.")
     sys.exit(1)
-
-SERIAL_PORT = '/dev/ttyS0'
-BAUD_RATE = 115200
-TIMEOUT_SEC = 2
-
-def scan_ports():
-    ports = serial.tools.list_ports.comports()
-    print("--- Available Serial Ports ---")
-    for p in ports:
-        print(f"Device: {p.device} | Description: {p.description}")
-    print("------------------------------")
-    if not ports:
-        print("WARNING: No serial ports detected by OS.")
-
-def init_uart():
-    scan_ports()
-    try:
-        ser = serial.Serial(
-            port=SERIAL_PORT,
-            baudrate=BAUD_RATE,
-            timeout=TIMEOUT_SEC
-        )
-        print(f"UART Initialized: {SERIAL_PORT} @ {BAUD_RATE}")
-        return ser
-    except serial.SerialException as e:
-        print(f"UART Initialization Error: {e}")
-        print("ACTION REQUIRED: Update 'SERIAL_PORT' variable to match one of the available devices listed above.")
-        sys.exit(1)
 
 def generate_mock_txn():
     return {
@@ -59,31 +31,32 @@ def generate_mock_txn():
     }
 
 def main():
-    uart_conn = init_uart()
+    print("System: Initializing MPU-MCU RPC Bridge...")
     
     try:
         while True:
             txn_data = generate_mock_txn()
-            payload = json.dumps(txn_data) + "\n"
+            payload = json.dumps(txn_data)
             
-            uart_conn.write(payload.encode('utf-8'))
-            print(f"[Tx] Sent: {payload.strip()}")
+            print(f"[Tx] Sending to MCU via RPC: {payload}")
             
-            response = uart_conn.readline()
-            
-            if response:
-                decoded = response.decode('utf-8').strip()
-                print(f"[Rx] Adjudication Result: {decoded}")
-            else:
-                print("[Timeout] No response from MCU. Check F8/Resume status.")
+            try:
+                response = rpc.call('adjudicate_txn', payload)
+                
+                if response:
+                    print(f"[Rx] MCU Adjudication Result: {response}")
+                else:
+                    print("[Rx] MCU responded with empty payload.")
+                    
+            except Exception as rpc_err:
+                print(f"[RPC Error] Call failed or timed out: {rpc_err}")
+                print("ACTION REQUIRED: Ensure MCU (STM32U585) has registered the 'adjudicate_txn' RPC function and is running.")
             
             time.sleep(2)
             
     except KeyboardInterrupt:
-        print("\nProcess terminated.")
-    finally:
-        if uart_conn and uart_conn.is_open:
-            uart_conn.close()
+        print("\nProcess terminated by user.")
+        sys.exit(0)
 
 if __name__ == '__main__':
     main()</code></pre>
