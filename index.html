@@ -1,64 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QITC MPU Python Code (RPC Version)</title>
-    <style>
-        body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
-        pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
-        code { font-family: Consolas, Monaco, monospace; font-size: 14px; line-height: 1.5; }
-    </style>
-</head>
-<body>
-<pre><code>import sys
-import time
-import json
+Using CPython 3.13.9 interpreter at: /usr/local/bin/python
+Creating virtual environment at: .cache/.venv
+Activating python virtual environment
+Traceback (most recent call last):
+  File "/app/python/main.py", line 1, in <module>
+    import serial
+ModuleNotFoundError: No module named 'serial'
+Activating python virtual environment
+Traceback (most recent call last):
+  File "/app/python/main.py", line 1, in <module>
+    import serial
+ModuleNotFoundError: No module named 'serial'
+Activating python virtual environment
+ERROR: 'pyserial' module not found. Please install it.
+Activating python virtual environment
+ERROR: 'pyserial' module not found. Please install it.
+Activating python virtual environment
+Using Python 3.13.9 environment at: .cache/.venv
+Resolved 1 package in 512ms
+Prepared 1 package in 151ms
+Installed 1 package in 31ms
+ + pyserial==3.5
+Clearing cache at: .cache/uv
+Removed 46 files (329.4KiB)
+UART Initialization Error: [Errno 2] could not open port /dev/ttyS0: [Errno 2] No such file or directory: '/dev/ttyS0'
+Activating python virtual environment
+Requirements already installed.
+Using Python 3.13.9 environment at: .cache/.venv
+Audited 1 package in 1.04s
+Clearing cache at: .cache/uv
+Removed 6 files (1.1KiB)
 
-try:
-    import rpc
-except ImportError:
-    print("FATAL ERROR: 'rpc' module not found.")
-    print("Ensure this script is running inside the official Arduino App Lab container.")
-    sys.exit(1)
-
-def generate_mock_txn():
-    return {
-        "event_id": "EVT_001",
-        "action": "TXN_TRANSFER",
-        "amount": 100000,
-        "currency": "USD"
-    }
-
-def main():
-    print("System: Initializing MPU-MCU RPC Bridge...")
-    
-    try:
-        while True:
-            txn_data = generate_mock_txn()
-            payload = json.dumps(txn_data)
-            
-            print(f"[Tx] Sending to MCU via RPC: {payload}")
-            
-            try:
-                response = rpc.call('adjudicate_txn', payload)
-                
-                if response:
-                    print(f"[Rx] MCU Adjudication Result: {response}")
-                else:
-                    print("[Rx] MCU responded with empty payload.")
-                    
-            except Exception as rpc_err:
-                print(f"[RPC Error] Call failed or timed out: {rpc_err}")
-                print("ACTION REQUIRED: Ensure MCU (STM32U585) has registered the 'adjudicate_txn' RPC function and is running.")
-            
-            time.sleep(2)
-            
-    except KeyboardInterrupt:
-        print("\nProcess terminated by user.")
-        sys.exit(0)
-
-if __name__ == '__main__':
-    main()</code></pre>
-</body>
-</html>
+--- Available Serial Ports ---
+--------------------------------
+WARNING: No serial ports detected by OS.
+UART Initialization Error: [Errno 2] could not open port /dev/ttyS0: [Errno 2] No such file or directory: '/dev/ttyS0'
+ACTION REQUIRED: Update 'SERIAL_PORT' variable to match one of the available devices listed above.
+Activating python virtual environment
+Requirements already installed.
+Using Python 3.13.9 environment at: .cache/.venv
+Audited 1 package in 1.09s
+Clearing cache at: .cache/uv
+Removed 6 files (1.1KiB)
+FATAL ERROR: 'rpc' module not found.
+Ensure this script is running inside the official Arduino App Lab container.
+exited with code 1
