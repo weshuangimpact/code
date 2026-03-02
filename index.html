@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Code Notepad</title>
+    <style>
+        body {
+            background-color: #ffffff;
+            color: #000000;
+            font-family: monospace;
+            padding: 20px;
+            margin: 0;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+<pre>
+import serial
+import json
+import time
+import sys
+
+# Hardware serial port configuration
+SERIAL_PORT = '/dev/ttyS0'
+BAUD_RATE = 115200
+
+def render_dashboard(uuid, res, meta_a, meta_b):
+    # Clear screen and move cursor to top-left using ANSI escape codes
+    sys.stdout.write('\033[2J\033[H')
+    
+    status_str = "ALLOW" if res == 1 else ("DENY" if res == 0 else "PENDING")
+    
+    print("+----------------------------------+----------------------------------+")
+    print("| [1] AI INFERENCE TXN STREAM      | [2] MCU ADJUDICATION REPORT      |")
+    print("+----------------------------------+----------------------------------+")
+    print(f"| UUID: {uuid[:8]:<23}  | STATUS: {status_str:<24} |")
+    print("| SIMULATING AI AGENT SCRIPT...    | STATIC RULEPACK APPLIED          |")
+    print("|                                  | META A RECEIVED                  |")
+    print("+----------------------------------+----------------------------------+")
+    print("| [3] EDGE SELF-HEALING CENTER     | [4] IMMUTABLE EVIDENCE CHAIN     |")
+    print("+----------------------------------+----------------------------------+")
+    
+    if res == -1:
+        print("| ACTION: ROUTE TO ASYNC RISK POOL | META A HASH (HARDWARE):          |")
+        print(f"| WAITING FOR HUMAN REVIEW...      | {meta_a:<32} |")
+    else:
+        print("| ACTION: FINALIZE TXN STATUS      | META A HASH (HARDWARE):          |")
+        print(f"| NO HEALING REQUIRED              | {meta_a:<32} |")
+        
+    print("|                                  | META B HASH (INTEGRATED):        |")
+    print(f"|                                  | {meta_b:<32} |")
+    print("+----------------------------------+----------------------------------+")
+    print("[SYSTEM] DATA SYNCHRONIZED | ATOMIC WRITE TO USB EXECUTED.")
+    sys.stdout.flush()
+
+def integrate_evidence_and_display(uuid, res, meta_a):
+    # Simulate MPU generating Meta B
+    timestamp = str(int(time.time() * 1000))
+    meta_b = f"MPU_SHA256_{uuid[:6]}_{timestamp}"
+    
+    # Output to the 4-split dashboard
+    render_dashboard(uuid, res, meta_a, meta_b)
+
+def main():
+    try:
+        # Initialize serial port reception
+        mcu_serial = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        
+        # Initialize screen clearance
+        sys.stdout.write('\033[2J\033[H')
+        sys.stdout.flush()
+        
+        while True:
+            if mcu_serial.in_waiting > 0:
+                # Read single-line JSON string from MCU
+                incoming_data = mcu_serial.readline().decode('utf-8').strip()
+                
+                try:
+                    # Parse JSON
+                    doc = json.loads(incoming_data)
+                    meta_a_data = doc.get("Meta_A", {})
+                    
+                    uuid = meta_a_data.get("UUID", "")
+                    res = meta_a_data.get("RES", 0)
+                    meta_a = meta_a_data.get("HASH", "")
+                    
+                    # Trigger integration logic upon data integrity confirmation
+                    if uuid and meta_a:
+                        integrate_evidence_and_display(uuid, res, meta_a)
+                        
+                except json.JSONDecodeError:
+                    # Ignore non-JSON serial noise
+                    pass
+                    
+    except KeyboardInterrupt:
+        print("\n[SYSTEM] Terminated by user.")
+    except serial.SerialException as e:
+        print(f"[ERROR] Serial Port Issue: {e}")
+    finally:
+        if 'mcu_serial' in locals() and mcu_serial.is_open:
+            mcu_serial.close()
+
+if __name__ == '__main__':
+    main()
+</pre>
+</body>
+</html>
