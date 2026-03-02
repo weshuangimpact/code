@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>QITC MPU Dashboard & IP Finder</title>
+    <title>QITC MPU Dashboard & Diagnostics</title>
     <style>
         body { background-color: #1e1e1e; color: #d4d4d4; font-family: sans-serif; padding: 20px; }
         pre { background-color: #2d2d2d; padding: 20px; border: 1px solid #444; border-radius: 8px; overflow-x: auto; }
@@ -17,34 +17,38 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+def force_print(msg):
+    print(msg)
+    sys.stdout.flush()
+
+force_print("--- SYSTEM DIAGNOSTIC START ---")
+
 try:
+    force_print("Step 1: Checking Network Interface...")
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('8.8.8.8', 80))
+    current_ip = s.getsockname()[0]
+    s.close()
+    force_print(f"&gt;&gt;&gt; DEVICE IP ADDRESS: {current_ip} &lt;&lt;&lt;")
+except Exception as e:
+    current_ip = '127.0.0.1'
+    force_print(f"Network Error (Using localhost): {e}")
+
+try:
+    force_print("Step 2: Loading Arduino Bridge Utilities...")
     from arduino.app_utils import *
-except ImportError:
-    print("FATAL ERROR: 'arduino.app_utils' module not found.")
+    force_print("Bridge Utils Loaded Successfully.")
+except ImportError as e:
+    force_print(f"FATAL ERROR: 'arduino.app_utils' module not found. ({e})")
     sys.exit(1)
 
-# Global data for Dashboard
 dashboard_data = {"status": "INITIALIZING", "last_update": "N/A", "result": None}
-
-def get_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Trigger routing table to find the outbound interface
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = '127.0.0.1'
-    finally:
-        s.close()
-    return ip
 
 class WebDashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        
-        # Simplified UI for HTML Dashboard
         html_content = f"""&lt;html&gt;
         &lt;head&gt;
             &lt;meta http-equiv="refresh" content="2"&gt;
@@ -58,12 +62,12 @@ class WebDashboardHandler(BaseHTTPRequestHandler):
         &lt;body&gt;
             &lt;h1&gt;Qualcomm QITC - Secure Financial Adjudicator&lt;/h1&gt;
             &lt;div class="box"&gt;
-                &lt;p class="status"&gt;Current System Status: {dashboard_data['status']}&lt;/p&gt;
+                &lt;p class="status"&gt;System Status: {dashboard_data['status']}&lt;/p&gt;
                 &lt;hr&gt;
                 &lt;h2&gt;Live Transaction Evidence (Meta_A):&lt;/h2&gt;
-                &lt;pre style="font-size:16px;"&gt;{json.dumps(dashboard_data['result'], indent=4)}&lt;/pre&gt;
+                &lt;pre style="font-size:16px; color:#00ff41;"&gt;{json.dumps(dashboard_data['result'], indent=4)}&lt;/pre&gt;
             &lt;/div&gt;
-            &lt;p&gt;Server IP: {get_ip()} | Last Update: {time.strftime('%H:%M:%S')}&lt;/p&gt;
+            &lt;p&gt;Server IP: {current_ip} | Last Update: {time.strftime('%H:%M:%S')}&lt;/p&gt;
         &lt;/body&gt;
         &lt;/html&gt;"""
         self.wfile.write(html_content.encode('utf-8'))
@@ -78,32 +82,25 @@ def start_server():
 def main():
     global dashboard_data
     
-    # 1. Identity Device IP
-    current_ip = get_ip()
-    print("\n" + "="*50)
-    print(f"DEVICE IP ADDRESS: {current_ip}")
-    print(f"DASHBOARD URL: http://{current_ip}:8080")
-    print("="*50 + "\n")
-    
-    # 2. Start Background Web Server
+    force_print(f"Step 3: Starting Web Dashboard at http://{current_ip}:8080")
     threading.Thread(target=start_server, daemon=True).start()
     
-    # 3. Test Scenarios for Rulepack Validation
     scenarios = [
-        {"event_id": "EVT_ALLOW", "amount": 5000.0, "currency": "USD", "risk_score": 10},  # Result: O
-        {"event_id": "EVT_DENY_AMT", "amount": 15000.0, "currency": "USD", "risk_score": 20}, # Result: X
-        {"event_id": "EVT_PENDING", "amount": 8000.0, "currency": "USD", "risk_score": 85},  # Result: -
-        {"event_id": "EVT_DENY_CURR", "amount": 3000.0, "currency": "EUR", "risk_score": 5}   # Result: X
+        {"event_id": "EVT_ALLOW", "amount": 5000.0, "currency": "USD", "risk_score": 10},
+        {"event_id": "EVT_DENY_AMT", "amount": 15000.0, "currency": "USD", "risk_score": 20},
+        {"event_id": "EVT_PENDING", "amount": 8000.0, "currency": "USD", "risk_score": 85},
+        {"event_id": "EVT_DENY_CURR", "amount": 3000.0, "currency": "EUR", "risk_score": 5}
     ]
+    
+    force_print("Step 4: Beginning Transaction Stream...")
     
     try:
         while True:
             for txn_data in scenarios:
                 payload = json.dumps(txn_data)
-                print(f"[Tx] Transmitting to MCU: {payload}")
+                force_print(f"[Tx] Transmitting: {payload}")
                 
                 try:
-                    # Bridge Call to MCU STM32U585
                     response = Bridge.call('adjudicate_txn', payload)
                     if response:
                         parsed_res = json.loads(response)
@@ -111,17 +108,18 @@ def main():
                             "status": "OPERATIONAL",
                             "result": parsed_res
                         }
-                        print(f"[Rx] MCU Decision: {parsed_res['status']}\n")
+                        force_print(f"[Rx] Decision: {parsed_res['status']}")
                     else:
                         dashboard_data["status"] = "MCU_RESPONSE_EMPTY"
+                        force_print("[Rx] Error: Empty Response from MCU")
                 except Exception as err:
-                    print(f"[Bridge Error] {err}")
-                    dashboard_data["status"] = "BRIDGE_DISCONNECTED"
+                    dashboard_data["status"] = f"BRIDGE_ERROR"
+                    force_print(f"[Bridge Error] {err}")
                 
-                time.sleep(3) # Wait 3 seconds per cycle
+                time.sleep(3)
                 
     except KeyboardInterrupt:
-        print("System shutdown.")
+        force_print("System shutdown initiated.")
         sys.exit(0)
 
 if __name__ == '__main__':
